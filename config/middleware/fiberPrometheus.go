@@ -45,7 +45,7 @@ func create(registry prometheus.Registerer, serviceName, namespace, subsystem st
 			0.000000005,
 			0.00000001, // 10ns
 			0.00000002,
-			0.00000005,
+			0.00000005,git
 			0.0000001, // 100ns
 			0.0000002,
 			0.0000005,
