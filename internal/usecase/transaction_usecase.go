@@ -9,6 +9,7 @@ import (
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/snap"
 	"go.uber.org/zap"
+	"log"
 	"os"
 	"time"
 )
@@ -21,7 +22,8 @@ type transactionUsecase struct {
 type TransactionExecutor interface {
 	CreateTransaction(request model.TransactionRequest, user model.User) (*snap.Response, error)
 	GetTransactionByTransactionID(transactionID int) (model.TransactionResponse, error)
-	UpdateTransactionStatus(orderID string, status string) error
+	GetTransactionByOrderID(orderID string) (model.Transaction, error)
+	UpdateTransactionStatus(orderID, status, email string) error
 }
 
 func NewTransactionUsecase(transactionRepo repository.TransactionPersister, logger config.Logger) TransactionExecutor {
@@ -91,6 +93,20 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 
 	snapResp, _ := s.CreateTransaction(req)
 
+	message := model.Message{
+		OrderID:      orderID,
+		Email:        user.Email,
+		URL:          snapResp.RedirectURL,
+		Name:         user.FullName,
+		Date:         time.Now().Format("02 January 2006 15:04:05"),
+		DeadlineDate: time.Now().AddDate(0, 0, 1).Format("02 January 2006 15:04:05"),
+		Total:        request.TotalAmount,
+	}
+
+	if err := helper.ProduceCreateTransactionMessage(message); err != nil {
+		uc.logger.Error("Error when producing message", zap.Error(err))
+	}
+
 	return snapResp, nil
 }
 
@@ -133,6 +149,16 @@ func (uc *transactionUsecase) GetTransactionByTransactionID(transactionID int) (
 	return transactionResponse, nil
 }
 
+func (uc *transactionUsecase) GetTransactionByOrderID(orderID string) (model.Transaction, error) {
+	transaction, err := uc.transactionRepo.GetTransactionByOrderID(orderID)
+	if err != nil {
+		uc.logger.Error("Error when getting transaction by orderID", zap.Error(err))
+		return model.Transaction{}, err
+	}
+
+	return transaction, nil
+}
+
 func (uc *transactionUsecase) GetListTransaction(request model.TransactionListRequest) ([]model.TransactionListResponse, error) {
 	transactions, err := uc.transactionRepo.GetListTransaction(request)
 	if err != nil {
@@ -156,11 +182,20 @@ func (uc *transactionUsecase) GetListTransaction(request model.TransactionListRe
 	return transactionListResponses, nil
 }
 
-func (uc *transactionUsecase) UpdateTransactionStatus(orderID string, status string) error {
+func (uc *transactionUsecase) UpdateTransactionStatus(orderID, status, email string) error {
 	err := uc.transactionRepo.UpdateTransactionStatus(orderID, status)
 	if err != nil {
 		uc.logger.Error("Error when updating transaction status", zap.Error(err))
 		return err
+	}
+
+	switch status {
+	case "completed":
+		log.Println("send message broker")
+		message := model.CompleteTransactionMessage{Email: email}
+		if err := helper.ProduceCompletedTransactionMessage(message); err != nil {
+			uc.logger.Error("Error when producing message", zap.Error(err))
+		}
 	}
 
 	return nil

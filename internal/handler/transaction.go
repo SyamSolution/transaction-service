@@ -2,17 +2,15 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/SyamSolution/transaction-service/config"
 	"github.com/SyamSolution/transaction-service/internal/model"
 	"github.com/SyamSolution/transaction-service/internal/usecase"
+	"github.com/gofiber/fiber/v2"
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/coreapi"
-	"os"
-
-	"github.com/gofiber/fiber/v2"
 	"io/ioutil"
 	"net/http"
+	"os"
 
 	"go.uber.org/zap"
 )
@@ -92,8 +90,6 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		})
 	}
 
-	//ngirim ke notification-service untuk mengirimkan email data detail transaksi
-
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message":      "Transaction created successfully",
 		"token":        snapResp.Token,
@@ -170,14 +166,20 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 		})
 	}
 
-	fmt.Println(orderId)
-
 	// 4. Check transaction status using the orderId
 	transactionStatusResp, err := c.CheckTransaction(orderId)
 	if err != nil {
 		// Return an error response if the transaction status check fails
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.GetMessage(),
+		})
+	}
+
+	transaction, errors := h.transactionUsecase.GetTransactionByOrderID(orderId)
+	if err != nil {
+		h.logger.Error("Error when getting transaction by order ID", zap.Error(err))
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": errors.Error(),
 		})
 	}
 
@@ -189,11 +191,17 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 				// TODO: Update your database to set the transaction status to 'challenge'
 			} else if transactionStatusResp.FraudStatus == "accept" {
 				// TODO: Update your database to set the transaction status to 'success'
-				fmt.Printf("transaction success")
+				err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transaction.Email)
+				if err != nil {
+					h.logger.Error("Error when updating transaction status", zap.Error(err))
+					return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error": err.Error(),
+					})
+				}
 			}
 		case "settlement":
 			// TODO: Update your database to set the transaction status to 'success'
-			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed")
+			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transaction.Email)
 			if err != nil {
 				h.logger.Error("Error when updating transaction status", zap.Error(err))
 				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -204,8 +212,22 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 			// TODO: Handle 'deny' appropriately
 		case "cancel", "expire":
 			// TODO: Update your database to set the transaction status to 'failure'
+			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "cancelled", transaction.Email)
+			if err != nil {
+				h.logger.Error("Error when updating transaction status", zap.Error(err))
+				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
 		case "pending":
 			// TODO: Update your database to set the transaction status to 'pending'
+			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "pending", transaction.Email)
+			if err != nil {
+				h.logger.Error("Error when updating transaction status", zap.Error(err))
+				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
 		}
 	}
 

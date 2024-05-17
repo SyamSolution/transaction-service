@@ -15,6 +15,7 @@ type transactionRepository struct {
 type TransactionPersister interface {
 	CreateTransaction(transaction model.Transaction, detailTransaction []model.DetailTransaction) error
 	GetTransactionByTransactionID(transactionID int) (model.Transaction, error)
+	GetTransactionByOrderID(orderID string) (model.Transaction, error)
 	GetDetailTransactionByTransactionID(transactionID int) ([]model.DetailTransaction, error)
 	GetListTransaction(request model.TransactionListRequest) ([]model.Transaction, error)
 	UpdateTransactionStatus(orderID string, status string) error
@@ -71,6 +72,22 @@ func (r *transactionRepository) GetTransactionByTransactionID(transactionID int)
 		mobile_number, email, payment_status, created_at, updated_at FROM transaction WHERE transaction_id = ?`
 
 	err := r.DB.QueryRow(query, transactionID).Scan(&transactions.TransactionID, &transactions.UserID, &transactions.OrderID, &transactions.TransactionDate,
+		&transactions.PaymentMethod, &transactions.TotalAmount, &transactions.TotalTicket, &transactions.FullName, &transactions.MobileNumber,
+		&transactions.Email, &transactions.PaymentStatus, &transactions.CreatedAt, &transactions.UpdatedAt)
+	if err != nil {
+		r.logger.Error("Error when scanning transaction table", zap.Error(err))
+		return transactions, err
+	}
+
+	return transactions, nil
+}
+
+func (r *transactionRepository) GetTransactionByOrderID(orderID string) (model.Transaction, error) {
+	var transactions model.Transaction
+	query := `SELECT transaction_id, user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
+		mobile_number, email, payment_status, created_at, updated_at FROM transaction WHERE order_id = ?`
+
+	err := r.DB.QueryRow(query, orderID).Scan(&transactions.TransactionID, &transactions.UserID, &transactions.OrderID, &transactions.TransactionDate,
 		&transactions.PaymentMethod, &transactions.TotalAmount, &transactions.TotalTicket, &transactions.FullName, &transactions.MobileNumber,
 		&transactions.Email, &transactions.PaymentStatus, &transactions.CreatedAt, &transactions.UpdatedAt)
 	if err != nil {
