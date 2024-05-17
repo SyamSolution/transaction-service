@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/SyamSolution/transaction-service/config"
+	"github.com/SyamSolution/transaction-service/config/middleware"
 	"github.com/SyamSolution/transaction-service/internal/handler"
 	"github.com/SyamSolution/transaction-service/internal/repository"
 	"github.com/SyamSolution/transaction-service/internal/usecase"
-	"github.com/SyamSolution/transaction-service/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
-	"log"
-	"os"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func main() {
@@ -20,6 +22,11 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+
+	dbCollector := middleware.NewStatsCollector("assesment", db)
+	prometheus.MustRegister(dbCollector)
+	fiberProm := middleware.NewWithRegistry(prometheus.DefaultRegisterer, "smilley", "", "", map[string]string{})
+
 
 	//=== repository lists start ===//
 	transactionRepo := repository.NewTransactionRepository(db, baseDep.Logger)
@@ -39,6 +46,10 @@ func main() {
 		return c.SendString("Hello, World!")
 	})
 
+	//=== metrics route
+	fiberProm.RegisterAt(app, "/metrics")
+	app.Use(fiberProm.Middleware)
+	
 	//=== transaction routes ===//
 	app.Post("/midtrans-notification", transactionHandler.MidtransNotification)
 	app.Group("/", middleware.Auth())
