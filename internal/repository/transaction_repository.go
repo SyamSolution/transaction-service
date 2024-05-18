@@ -129,20 +129,19 @@ func (r *transactionRepository) GetListTransaction(request model.TransactionList
 	var transactions []model.Transaction
 	query := `SELECT transaction_id, user_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
 		mobile_number, email, payment_status, created_at, updated_at FROM transaction 
-		WHERE user_id = ?`
+		WHERE email = ?`
 
 	if request.Status != "" {
 		query += " AND payment_status = '" + request.Status + "'"
 	}
 
-	startDate := request.StartDate.Format("2006-01-02")
-	endDate := request.EndDate.Format("2006-01-02")
+	//if request.StartDate.IsZero() && !request.EndDate.IsZero() {
+	//	startDate := request.StartDate.Format("2006-01-02")
+	//	endDate := request.EndDate.Format("2006-01-02")
+	//	query += " AND transaction_date BETWEEN '" + startDate + "' AND '" + endDate + "'"
+	//}
 
-	if startDate != "" && endDate != "" {
-		query += " AND transaction_date BETWEEN '" + startDate + "' AND '" + endDate + "'"
-	}
-
-	rows, err := r.DB.Query(query, request.UserID)
+	rows, err := r.DB.Query(query, request.Email)
 	if err != nil {
 		r.logger.Error("Error when querying transaction table", zap.Error(err))
 		return transactions, err

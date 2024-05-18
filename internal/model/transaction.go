@@ -68,7 +68,7 @@ type TransactionResponse struct {
 }
 
 type TransactionListRequest struct {
-	UserID    int       `json:"user_id"`
+	Email     string    `json:"email"`
 	StartDate time.Time `json:"start_date"`
 	EndDate   time.Time `json:"end_date"`
 	Status    string    `json:"status"`

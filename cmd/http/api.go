@@ -27,7 +27,6 @@ func main() {
 	prometheus.MustRegister(dbCollector)
 	fiberProm := middleware.NewWithRegistry(prometheus.DefaultRegisterer, "smilley", "", "", map[string]string{})
 
-
 	//=== repository lists start ===//
 	transactionRepo := repository.NewTransactionRepository(db, baseDep.Logger)
 	//=== repository lists end ===//
@@ -49,12 +48,13 @@ func main() {
 	//=== metrics route
 	fiberProm.RegisterAt(app, "/metrics")
 	app.Use(fiberProm.Middleware)
-	
+
 	//=== transaction routes ===//
 	app.Post("/midtrans-notification", transactionHandler.MidtransNotification)
 	app.Group("/", middleware.Auth())
 	app.Post("/transactions", transactionHandler.CreateTransaction)
 	app.Get("/transactions/:transaction_id", transactionHandler.GetTransactionByTransactionID)
+	app.Get("/transactions-list", transactionHandler.GetListTransaction)
 
 	//=== listen port ===//
 	if err := app.Listen(fmt.Sprintf(":%s", "3002")); err != nil {

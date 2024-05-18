@@ -24,6 +24,7 @@ type TransactionHandler interface {
 	CreateTransaction(c *fiber.Ctx) error
 	GetTransactionByTransactionID(c *fiber.Ctx) error
 	MidtransNotification(ctx *fiber.Ctx) error
+	GetListTransaction(c *fiber.Ctx) error
 }
 
 func NewTransactionHandler(transactionUsecase usecase.TransactionExecutor, logger config.Logger) TransactionHandler {
@@ -34,8 +35,11 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 	var request model.TransactionRequest
 	if err := c.BodyParser(&request); err != nil {
 		h.logger.Error("Error when parsing request", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request",
+		return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusBadRequest,
+				Message: err.Error(),
+			},
 		})
 	}
 
@@ -43,8 +47,11 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 	req, err := http.NewRequest("GET", "http://localhost:3000/users/profile", nil)
 	if err != nil {
 		h.logger.Error("Error when creating new request", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Error when creating new request",
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: err.Error(),
+			},
 		})
 	}
 
@@ -53,8 +60,11 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		h.logger.Error("Error when sending request to user service", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Error when sending request to user service",
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: err.Error(),
+			},
 		})
 	}
 	defer resp.Body.Close()
@@ -62,8 +72,11 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		h.logger.Error("Error when reading response body", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Error when reading response body",
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: err.Error(),
+			},
 		})
 	}
 
@@ -71,29 +84,46 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 	err = json.Unmarshal(body, &respUser)
 	if err != nil {
 		h.logger.Error("Error when unmarshalling response body", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Error when unmarshalling response body",
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: err.Error(),
+			},
 		})
 	}
 
 	if respUser.User == (model.User{}) {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Unauthorized",
+		return c.Status(fiber.StatusUnauthorized).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusUnauthorized,
+				Message: "Unauthorized",
+			},
 		})
 	}
 
 	snapResp, err := h.transactionUsecase.CreateTransaction(request, respUser.User)
 	if err != nil {
 		h.logger.Error("Error when creating transaction", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: err.Error(),
+			},
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message":      "Transaction created successfully",
-		"token":        snapResp.Token,
-		"redirect_url": snapResp.RedirectURL,
+	return c.Status(fiber.StatusCreated).JSON(model.Response{
+		Data: struct {
+			Token       string `json:"token"`
+			RedirectURL string `json:"redirect_url"`
+		}{
+			Token:       snapResp.Token,
+			RedirectURL: snapResp.RedirectURL,
+		},
+		Meta: model.Meta{
+			Code:    fiber.StatusCreated,
+			Message: "Transaction created successfully",
+		},
 	})
 }
 
@@ -101,44 +131,67 @@ func (h *transaction) GetTransactionByTransactionID(c *fiber.Ctx) error {
 	transactionID, err := c.ParamsInt("transaction_id")
 	if err != nil {
 		h.logger.Error("Error when parsing transaction ID", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid transaction ID",
+		return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusBadRequest,
+				Message: err.Error(),
+			},
 		})
 	}
 
 	transaction, err := h.transactionUsecase.GetTransactionByTransactionID(transactionID)
 	if err != nil {
 		h.logger.Error("Error when getting transaction by transaction ID", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: err.Error(),
+			},
 		})
 	}
 	transaction.Email = c.Locals("email").(string)
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"transaction": transaction,
+	return c.Status(fiber.StatusOK).JSON(model.Response{
+		Data: transaction,
+		Meta: model.Meta{
+			Code:    fiber.StatusOK,
+			Message: "Transaction retrieved successfully",
+		},
 	})
 }
 
 func (h *transaction) GetListTransaction(c *fiber.Ctx) error {
-	//email := c.Locals("email").(string)
-	//status := c.Query("status")
+	email := c.Locals("email").(string)
 
-	//request := model.TransactionListRequest{
-	//	Email:  email,
-	//	Status: status,
-	//}
-	//
-	//transactions, err := h.transactionUsecase.GetListTransaction(request)
-	//if err != nil {
-	//	h.logger.Error("Error when getting list transaction", zap.Error(err))
-	//	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-	//		"message": err.Error(),
-	//	})
-	//}
+	var request model.TransactionListRequest
+	if err := c.BodyParser(&request); err != nil {
+		h.logger.Error("Error when parsing request", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusBadRequest,
+				Message: err.Error(),
+			},
+		})
+	}
+	request.Email = email
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		//"transactions": transactions,
+	transactions, err := h.transactionUsecase.GetListTransaction(request)
+	if err != nil {
+		h.logger.Error("Error when getting list transaction", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: err.Error(),
+			},
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(model.Response{
+		Data: transactions,
+		Meta: model.Meta{
+			Code:    fiber.StatusOK,
+			Message: "List transaction retrieved successfully",
+		},
 	})
 }
 

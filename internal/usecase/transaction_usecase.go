@@ -24,6 +24,7 @@ type TransactionExecutor interface {
 	GetTransactionByTransactionID(transactionID int) (model.TransactionResponse, error)
 	GetTransactionByOrderID(orderID string) (model.Transaction, error)
 	UpdateTransactionStatus(orderID, status, email string) error
+	GetListTransaction(request model.TransactionListRequest) ([]model.TransactionListResponse, error)
 }
 
 func NewTransactionUsecase(transactionRepo repository.TransactionPersister, logger config.Logger) TransactionExecutor {
