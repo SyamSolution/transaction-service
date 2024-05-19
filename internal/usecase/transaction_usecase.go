@@ -21,8 +21,8 @@ type transactionUsecase struct {
 
 type TransactionExecutor interface {
 	CreateTransaction(request model.TransactionRequest, user model.User) (*snap.Response, error)
-	GetTransactionByTransactionID(transactionID int) (model.TransactionResponse, error)
-	GetTransactionByOrderID(orderID string) (model.Transaction, error)
+	GetTransactionByTransactionID(transactionID int, email string) (model.TransactionResponse, error)
+	GetTransactionByOrderID(orderID string) (model.TransactionResponse, error)
 	UpdateTransactionStatus(orderID, status, email string) error
 	GetListTransaction(request model.TransactionListRequest) ([]model.TransactionListResponse, error)
 }
@@ -48,24 +48,27 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		UpdatedAt:       time.Now(),
 	}
 
-	//itemDetails := make([]midtrans.ItemDetails, len(request.DetailTicket))
 	var detailTransactions []model.DetailTransaction
 	for _, detail := range request.DetailTicket {
 		detailTransaction := model.DetailTransaction{
+			TicketID:    detail.TicketID,
 			TicketType:  detail.TicketType,
 			CountryName: detail.CountryName,
-			CountryCode: detail.CountryCode,
 			City:        detail.City,
 			Quantity:    detail.Quantity,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
 
-		//itemDetails[i] = midtrans.ItemDetails{
-		//	Name:  fmt.Sprintf("%s-%s", detail.TicketType, detail.CountryName),
-		//	Qty:   int32(detail.Quantity),
-		//	Price: 2,
-		//}
+		message := model.MessageOrderTicket{
+			TicketID: detailTransaction.TicketID,
+			Order:    detailTransaction.Quantity,
+		}
+
+		// produce ke ticket-management-service
+		if err := helper.ProduceOrderTicketMessage(message); err != nil {
+			uc.logger.Error("Error when producing message order ticket", zap.Error(err))
+		}
 
 		detailTransactions = append(detailTransactions, detailTransaction)
 	}
@@ -76,15 +79,16 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		return nil, err
 	}
 
+	// request ke midtrans
 	var s = snap.Client{}
 	s.New(os.Getenv("MIDTRANS_SERVER_KEY"), midtrans.Sandbox)
 
+	// TODO request api exchange to IDR
 	req := &snap.Request{
 		TransactionDetails: midtrans.TransactionDetails{
 			OrderID:  orderID,
 			GrossAmt: int64(request.TotalAmount),
 		},
-		//Items: &itemDetails,
 		CustomerDetail: &midtrans.CustomerDetails{
 			FName: user.FullName,
 			Email: user.Email,
@@ -94,6 +98,8 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 
 	snapResp, _ := s.CreateTransaction(req)
 
+	// message ke notification-service untuk send email
+	// TODO tambah detail ticket
 	message := model.Message{
 		OrderID:      orderID,
 		Email:        user.Email,
@@ -104,15 +110,15 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		Total:        request.TotalAmount,
 	}
 
-	if err := helper.ProduceCreateTransactionMessage(message); err != nil {
+	if err := helper.ProduceCreateTransactionMessageMail(message); err != nil {
 		uc.logger.Error("Error when producing message", zap.Error(err))
 	}
 
 	return snapResp, nil
 }
 
-func (uc *transactionUsecase) GetTransactionByTransactionID(transactionID int) (model.TransactionResponse, error) {
-	transaction, err := uc.transactionRepo.GetTransactionByTransactionID(transactionID)
+func (uc *transactionUsecase) GetTransactionByTransactionID(transactionID int, email string) (model.TransactionResponse, error) {
+	transaction, err := uc.transactionRepo.GetTransactionByTransactionID(transactionID, email)
 	if err != nil {
 		uc.logger.Error("Error when getting transaction by transactionID", zap.Error(err))
 		return model.TransactionResponse{}, err
@@ -128,9 +134,9 @@ func (uc *transactionUsecase) GetTransactionByTransactionID(transactionID int) (
 	for _, detail := range detailTransactions {
 		detailTransactionResponse := model.DetailTransactionResponse{
 			DetailTransactionID: detail.DetailTransactionID,
+			TicketID:            detail.TicketID,
 			TicketType:          detail.TicketType,
 			CountryName:         detail.CountryName,
-			CountryCode:         detail.CountryCode,
 			City:                detail.City,
 			Quantity:            detail.Quantity,
 		}
@@ -150,14 +156,45 @@ func (uc *transactionUsecase) GetTransactionByTransactionID(transactionID int) (
 	return transactionResponse, nil
 }
 
-func (uc *transactionUsecase) GetTransactionByOrderID(orderID string) (model.Transaction, error) {
+func (uc *transactionUsecase) GetTransactionByOrderID(orderID string) (model.TransactionResponse, error) {
 	transaction, err := uc.transactionRepo.GetTransactionByOrderID(orderID)
 	if err != nil {
 		uc.logger.Error("Error when getting transaction by orderID", zap.Error(err))
-		return model.Transaction{}, err
+		return model.TransactionResponse{}, err
 	}
 
-	return transaction, nil
+	detailTransactions, err := uc.transactionRepo.GetDetailTransactionByTransactionID(transaction.TransactionID)
+	if err != nil {
+		uc.logger.Error("Error when getting detail transaction by transactionID", zap.Error(err))
+		return model.TransactionResponse{}, err
+	}
+
+	var detailTransactionResponses []model.DetailTransactionResponse
+	for _, detail := range detailTransactions {
+		detailTransactionResponse := model.DetailTransactionResponse{
+			DetailTransactionID: detail.DetailTransactionID,
+			TicketID:            detail.TicketID,
+			TicketType:          detail.TicketType,
+			CountryName:         detail.CountryName,
+			City:                detail.City,
+			Quantity:            detail.Quantity,
+		}
+		detailTransactionResponses = append(detailTransactionResponses, detailTransactionResponse)
+	}
+
+	transactionResponse := model.TransactionResponse{
+		TransactionID:             transaction.TransactionID,
+		OrderID:                   orderID,
+		Email:                     transaction.Email,
+		TransactionDate:           transaction.TransactionDate,
+		PaymentMethod:             transaction.PaymentMethod,
+		TotalAmount:               transaction.TotalAmount,
+		TotalTicket:               transaction.TotalTicket,
+		Status:                    transaction.PaymentStatus,
+		DetailTransactionResponse: detailTransactionResponses,
+	}
+
+	return transactionResponse, nil
 }
 
 func (uc *transactionUsecase) GetListTransaction(request model.TransactionListRequest) ([]model.TransactionListResponse, error) {
@@ -194,7 +231,7 @@ func (uc *transactionUsecase) UpdateTransactionStatus(orderID, status, email str
 	case "completed":
 		log.Println("send message broker")
 		message := model.CompleteTransactionMessage{Email: email}
-		if err := helper.ProduceCompletedTransactionMessage(message); err != nil {
+		if err := helper.ProduceCompletedTransactionMessageMail(message); err != nil {
 			uc.logger.Error("Error when producing message", zap.Error(err))
 		}
 	}

@@ -25,7 +25,7 @@ func main() {
 
 	dbCollector := middleware.NewStatsCollector("assesment", db)
 	prometheus.MustRegister(dbCollector)
-	fiberProm := middleware.NewWithRegistry(prometheus.DefaultRegisterer, "smilley", "", "", map[string]string{})
+	fiberProm := middleware.NewWithRegistry(prometheus.DefaultRegisterer, "transaction-service", "", "", map[string]string{})
 
 	//=== repository lists start ===//
 	transactionRepo := repository.NewTransactionRepository(db, baseDep.Logger)
@@ -55,9 +55,10 @@ func main() {
 	app.Post("/transactions", transactionHandler.CreateTransaction)
 	app.Get("/transactions/:transaction_id", transactionHandler.GetTransactionByTransactionID)
 	app.Get("/transactions-list", transactionHandler.GetListTransaction)
+	// TODO tambah api buat cancel
 
 	//=== listen port ===//
-	if err := app.Listen(fmt.Sprintf(":%s", "3002")); err != nil {
+	if err := app.Listen(fmt.Sprintf(":%s", os.Getenv("APP_PORT"))); err != nil {
 		log.Fatal(err)
 	}
 }

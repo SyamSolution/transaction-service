@@ -21,9 +21,9 @@ type Transaction struct {
 type DetailTransaction struct {
 	DetailTransactionID int       `json:"detail_transaction_id"`
 	TransactionID       int       `json:"transaction_id"`
+	TicketID            int       `json:"ticket_id"`
 	TicketType          string    `json:"ticket_type"`
 	CountryName         string    `json:"country_name"`
-	CountryCode         string    `json:"country_code"`
 	City                string    `json:"city"`
 	Quantity            int       `json:"quantity"`
 	CreatedAt           time.Time `json:"created_at"`
@@ -31,9 +31,9 @@ type DetailTransaction struct {
 }
 
 type DetailTransactionRequest struct {
+	TicketID    int    `json:"ticket_id"`
 	TicketType  string `json:"ticket_type"`
 	CountryName string `json:"country_name"`
-	CountryCode string `json:"country_code"`
 	City        string `json:"city"`
 	Quantity    int    `json:"quantity"`
 }
@@ -48,9 +48,9 @@ type TransactionRequest struct {
 
 type DetailTransactionResponse struct {
 	DetailTransactionID int    `json:"detail_transaction_id"`
+	TicketID            int    `json:"ticket_id"`
 	TicketType          string `json:"ticket_type"`
 	CountryName         string `json:"country_name"`
-	CountryCode         string `json:"country_code"`
 	City                string `json:"city"`
 	Quantity            int    `json:"quantity"`
 }

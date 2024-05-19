@@ -13,7 +13,11 @@ type User struct {
 	NIK         string `json:"nik"`
 }
 
+type Data struct {
+	User User `json:"user"`
+}
+
 type ResponseUser struct {
-	Message string `json:"message"`
-	User    User   `json:"user"`
+	Data Data `json:"data"`
+	Meta Meta `json:"meta"`
 }
