@@ -3,8 +3,10 @@ package handler
 import (
 	"encoding/json"
 	"github.com/SyamSolution/transaction-service/config"
+	"github.com/SyamSolution/transaction-service/helper"
 	"github.com/SyamSolution/transaction-service/internal/model"
 	"github.com/SyamSolution/transaction-service/internal/usecase"
+	"github.com/SyamSolution/transaction-service/internal/util"
 	"github.com/gofiber/fiber/v2"
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/coreapi"
@@ -38,11 +40,12 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusBadRequest,
-				Message: err.Error(),
+				Message: util.ERROR_NOT_FOUND_MSG,
 			},
 		})
 	}
 
+	// TODO cek redis kalau ada
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", "http://localhost:3000/users/profile", nil)
 	if err != nil {
@@ -50,7 +53,7 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusInternalServerError,
-				Message: err.Error(),
+				Message: util.ERROR_BASE_MSG,
 			},
 		})
 	}
@@ -63,7 +66,7 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusInternalServerError,
-				Message: err.Error(),
+				Message: util.ERROR_BASE_MSG,
 			},
 		})
 	}
@@ -75,7 +78,7 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusInternalServerError,
-				Message: err.Error(),
+				Message: util.ERROR_BASE_MSG,
 			},
 		})
 	}
@@ -87,12 +90,12 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusInternalServerError,
-				Message: err.Error(),
+				Message: util.ERROR_BASE_MSG,
 			},
 		})
 	}
 
-	if respUser.User == (model.User{}) {
+	if respUser.Data.User == (model.User{}) {
 		return c.Status(fiber.StatusUnauthorized).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusUnauthorized,
@@ -101,13 +104,13 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		})
 	}
 
-	snapResp, err := h.transactionUsecase.CreateTransaction(request, respUser.User)
+	snapResp, err := h.transactionUsecase.CreateTransaction(request, respUser.Data.User)
 	if err != nil {
 		h.logger.Error("Error when creating transaction", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusInternalServerError,
-				Message: err.Error(),
+				Message: util.ERROR_BASE_MSG,
 			},
 		})
 	}
@@ -128,24 +131,27 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 }
 
 func (h *transaction) GetTransactionByTransactionID(c *fiber.Ctx) error {
+	email := c.Locals("email").(string)
+
 	transactionID, err := c.ParamsInt("transaction_id")
 	if err != nil {
 		h.logger.Error("Error when parsing transaction ID", zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusBadRequest,
-				Message: err.Error(),
+				Message: util.ERROR_NOT_FOUND_MSG,
 			},
 		})
 	}
 
-	transaction, err := h.transactionUsecase.GetTransactionByTransactionID(transactionID)
+	// TODO cek redis kalau ada data user
+	transaction, err := h.transactionUsecase.GetTransactionByTransactionID(transactionID, email)
 	if err != nil {
 		h.logger.Error("Error when getting transaction by transaction ID", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusInternalServerError,
-				Message: err.Error(),
+				Message: util.ERROR_BASE_MSG,
 			},
 		})
 	}
@@ -169,7 +175,7 @@ func (h *transaction) GetListTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusBadRequest,
-				Message: err.Error(),
+				Message: util.ERROR_NOT_FOUND_MSG,
 			},
 		})
 	}
@@ -181,7 +187,7 @@ func (h *transaction) GetListTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
 			Meta: model.Meta{
 				Code:    fiber.StatusInternalServerError,
-				Message: err.Error(),
+				Message: util.ERROR_BASE_MSG,
 			},
 		})
 	}
@@ -228,7 +234,7 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 		})
 	}
 
-	transaction, errors := h.transactionUsecase.GetTransactionByOrderID(orderId)
+	transactionOrder, errors := h.transactionUsecase.GetTransactionByOrderID(orderId)
 	if err != nil {
 		h.logger.Error("Error when getting transaction by order ID", zap.Error(err))
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -244,7 +250,18 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 				// TODO: Update your database to set the transaction status to 'challenge'
 			} else if transactionStatusResp.FraudStatus == "accept" {
 				// TODO: Update your database to set the transaction status to 'success'
-				err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transaction.Email)
+				for _, dt := range transactionOrder.DetailTransactionResponse {
+					message := model.MessageOrderTicket{
+						TicketID: dt.TicketID,
+						Order:    dt.Quantity,
+					}
+
+					if err := helper.ProduceSuccessOrderTicketMessage(message); err != nil {
+						h.logger.Error("Error when producing message", zap.Error(err))
+					}
+				}
+
+				err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transactionOrder.Email)
 				if err != nil {
 					h.logger.Error("Error when updating transaction status", zap.Error(err))
 					return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -254,7 +271,18 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 			}
 		case "settlement":
 			// TODO: Update your database to set the transaction status to 'success'
-			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transaction.Email)
+			for _, dt := range transactionOrder.DetailTransactionResponse {
+				message := model.MessageOrderTicket{
+					TicketID: dt.TicketID,
+					Order:    dt.Quantity,
+				}
+
+				if err := helper.ProduceSuccessOrderTicketMessage(message); err != nil {
+					h.logger.Error("Error when producing message", zap.Error(err))
+				}
+			}
+
+			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transactionOrder.Email)
 			if err != nil {
 				h.logger.Error("Error when updating transaction status", zap.Error(err))
 				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -265,7 +293,19 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 			// TODO: Handle 'deny' appropriately
 		case "cancel", "expire":
 			// TODO: Update your database to set the transaction status to 'failure'
-			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "cancelled", transaction.Email)
+			// kirim kafka ke ticket-management-service balikin ticket
+			for _, dt := range transactionOrder.DetailTransactionResponse {
+				message := model.MessageOrderTicket{
+					TicketID: dt.TicketID,
+					Order:    dt.Quantity,
+				}
+
+				if err := helper.ProduceFailedOrderTicketMessage(message); err != nil {
+					h.logger.Error("Error when producing message", zap.Error(err))
+				}
+			}
+
+			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "cancelled", transactionOrder.Email)
 			if err != nil {
 				h.logger.Error("Error when updating transaction status", zap.Error(err))
 				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -274,7 +314,7 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 			}
 		case "pending":
 			// TODO: Update your database to set the transaction status to 'pending'
-			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "pending", transaction.Email)
+			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "pending", transactionOrder.Email)
 			if err != nil {
 				h.logger.Error("Error when updating transaction status", zap.Error(err))
 				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

@@ -13,3 +13,8 @@ type Message struct {
 type CompleteTransactionMessage struct {
 	Email string `json:"email"`
 }
+
+type MessageOrderTicket struct {
+	TicketID int `json:"ticket_id"`
+	Order    int `json:"order"`
+}
