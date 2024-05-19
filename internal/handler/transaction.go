@@ -2,6 +2,10 @@ package handler
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"os"
+
 	"github.com/SyamSolution/transaction-service/config"
 	"github.com/SyamSolution/transaction-service/helper"
 	"github.com/SyamSolution/transaction-service/internal/model"
@@ -10,9 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/coreapi"
-	"io/ioutil"
-	"net/http"
-	"os"
 
 	"go.uber.org/zap"
 )
@@ -47,7 +48,7 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 
 	// TODO cek redis kalau ada
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", "http://localhost:3000/users/profile", nil)
+	req, err := http.NewRequest("GET", os.Getenv("USER_SERVICE_URL"), nil)
 	if err != nil {
 		h.logger.Error("Error when creating new request", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
