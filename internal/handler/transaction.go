@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/SyamSolution/transaction-service/config"
 	"github.com/SyamSolution/transaction-service/helper"
@@ -107,13 +108,22 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 
 	snapResp, err := h.transactionUsecase.CreateTransaction(request, respUser.Data.User)
 	if err != nil {
-		h.logger.Error("Error when creating transaction", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
-			Meta: model.Meta{
-				Code:    fiber.StatusInternalServerError,
-				Message: util.ERROR_BASE_MSG,
-			},
-		})
+		if strings.Contains(err.Error(), "not eligible") {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusBadRequest,
+					Message: "Not eligible to buy right now",
+				},
+			})
+		} else {
+			h.logger.Error("Error when creating transaction", zap.Error(err))
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusInternalServerError,
+					Message: util.ERROR_BASE_MSG,
+				},
+			})
+		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(model.Response{

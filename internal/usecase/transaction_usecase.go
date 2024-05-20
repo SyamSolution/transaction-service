@@ -32,12 +32,23 @@ func NewTransactionUsecase(transactionRepo repository.TransactionPersister, logg
 }
 
 func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest, user model.User) (*snap.Response, error) {
+	isEligible, err := helper.CheckEligible()
+	if err != nil {
+		uc.logger.Error("Error when hit grule service", zap.Error(err))
+		return nil, err
+	}
+
+	if !isEligible {
+		return nil, fmt.Errorf("not eligible")
+	}
+
 	orderID := fmt.Sprintf("ORDER-%s", helper.RandomOrderID(5))
 	transaction := model.Transaction{
 		UserID:          user.UserID,
 		OrderID:         orderID,
 		TransactionDate: time.Now(),
 		PaymentMethod:   request.PaymentMethod,
+		Continent:       request.Continent,
 		TotalAmount:     request.TotalAmount,
 		TotalTicket:     request.TotalTicket,
 		FullName:        user.FullName,
@@ -47,6 +58,9 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
+
+	// hit check all stock ticket with same continent
+	// check transaction with continent sold out
 
 	var detailTransactions []model.DetailTransaction
 	for _, detail := range request.DetailTicket {
@@ -71,16 +85,6 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		}
 
 		detailTransactions = append(detailTransactions, detailTransaction)
-	}
-
-	isEligible, err := helper.CheckEligible()
-	if err != nil {
-		uc.logger.Error("Error when checking eligible", zap.Error(err))
-		return nil, err
-	}
-
-	if !isEligible {
-		return nil, fmt.Errorf("not eligible")
 	}
 
 	err = uc.transactionRepo.CreateTransaction(transaction, detailTransactions)
@@ -161,6 +165,7 @@ func (uc *transactionUsecase) GetTransactionByTransactionID(transactionID int, e
 		TotalTicket:               transaction.TotalTicket,
 		Status:                    transaction.PaymentStatus,
 		DetailTransactionResponse: detailTransactionResponses,
+		Continent:                 transaction.Continent,
 	}
 
 	return transactionResponse, nil
@@ -202,6 +207,7 @@ func (uc *transactionUsecase) GetTransactionByOrderID(orderID string) (model.Tra
 		TotalTicket:               transaction.TotalTicket,
 		Status:                    transaction.PaymentStatus,
 		DetailTransactionResponse: detailTransactionResponses,
+		Continent:                 transaction.Continent,
 	}
 
 	return transactionResponse, nil

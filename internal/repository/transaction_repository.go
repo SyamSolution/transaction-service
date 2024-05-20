@@ -27,8 +27,8 @@ func NewTransactionRepository(DB *sql.DB, logger config.Logger) TransactionPersi
 
 func (r *transactionRepository) CreateTransaction(transaction model.Transaction, detailTransaction []model.DetailTransaction) error {
 	query := `INSERT INTO transaction (user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name, 
-    		mobile_number, email, payment_status, created_at, updated_at) 
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+    		mobile_number, email, payment_status, continent, created_at, updated_at) 
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
 
 	query2 := `INSERT INTO detail_transaction (transaction_id, ticket_id, ticket_type, country_name, city, quantity, created_at, updated_at)
     		VALUES (?,?,?,?,?,?,?,?)`
@@ -40,7 +40,7 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 	}
 
 	result, err := tx.Exec(query, transaction.UserID, transaction.OrderID, transaction.TransactionDate, transaction.PaymentMethod, transaction.TotalAmount,
-		transaction.TotalTicket, transaction.FullName, transaction.MobileNumber, transaction.Email, transaction.PaymentStatus, transaction.CreatedAt, transaction.UpdatedAt)
+		transaction.TotalTicket, transaction.FullName, transaction.MobileNumber, transaction.Email, transaction.PaymentStatus, transaction.Continent, transaction.CreatedAt, transaction.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when inserting transaction", zap.Error(err))
 		tx.Rollback()
@@ -69,11 +69,11 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 func (r *transactionRepository) GetTransactionByTransactionID(transactionID int, email string) (model.Transaction, error) {
 	var transactions model.Transaction
 	query := `SELECT transaction_id, user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
-		mobile_number, email, payment_status, created_at, updated_at FROM transaction WHERE transaction_id = ? AND email = ?`
+		mobile_number, email, payment_status, continent, created_at, updated_at FROM transaction WHERE transaction_id = ? AND email = ?`
 
 	err := r.DB.QueryRow(query, transactionID, email).Scan(&transactions.TransactionID, &transactions.UserID, &transactions.OrderID, &transactions.TransactionDate,
 		&transactions.PaymentMethod, &transactions.TotalAmount, &transactions.TotalTicket, &transactions.FullName, &transactions.MobileNumber,
-		&transactions.Email, &transactions.PaymentStatus, &transactions.CreatedAt, &transactions.UpdatedAt)
+		&transactions.Email, &transactions.PaymentStatus, &transactions.Continent, &transactions.CreatedAt, &transactions.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when scanning transaction table", zap.Error(err))
 		return transactions, err
@@ -85,11 +85,11 @@ func (r *transactionRepository) GetTransactionByTransactionID(transactionID int,
 func (r *transactionRepository) GetTransactionByOrderID(orderID string) (model.Transaction, error) {
 	var transactions model.Transaction
 	query := `SELECT transaction_id, user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
-		mobile_number, email, payment_status, created_at, updated_at FROM transaction WHERE order_id = ?`
+		mobile_number, email, payment_status, continent, created_at, updated_at FROM transaction WHERE order_id = ?`
 
 	err := r.DB.QueryRow(query, orderID).Scan(&transactions.TransactionID, &transactions.UserID, &transactions.OrderID, &transactions.TransactionDate,
 		&transactions.PaymentMethod, &transactions.TotalAmount, &transactions.TotalTicket, &transactions.FullName, &transactions.MobileNumber,
-		&transactions.Email, &transactions.PaymentStatus, &transactions.CreatedAt, &transactions.UpdatedAt)
+		&transactions.Email, &transactions.PaymentStatus, &transactions.Continent, &transactions.CreatedAt, &transactions.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when scanning transaction table", zap.Error(err))
 		return transactions, err
@@ -128,7 +128,7 @@ func (r *transactionRepository) GetDetailTransactionByTransactionID(transactionI
 func (r *transactionRepository) GetListTransaction(request model.TransactionListRequest) ([]model.Transaction, error) {
 	var transactions []model.Transaction
 	query := `SELECT transaction_id, user_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
-		mobile_number, email, payment_status, created_at, updated_at FROM transaction 
+		mobile_number, email, payment_status, continent, created_at, updated_at FROM transaction 
 		WHERE email = ?`
 
 	if request.Status != "" {
@@ -152,7 +152,7 @@ func (r *transactionRepository) GetListTransaction(request model.TransactionList
 		var transaction model.Transaction
 		err := rows.Scan(&transaction.TransactionID, &transaction.UserID, &transaction.TransactionDate,
 			&transaction.PaymentMethod, &transaction.TotalAmount, &transaction.TotalTicket, &transaction.FullName, &transaction.MobileNumber,
-			&transaction.Email, &transaction.PaymentStatus, &transaction.CreatedAt, &transaction.UpdatedAt)
+			&transaction.Email, &transaction.PaymentStatus, &transaction.Continent, &transaction.CreatedAt, &transaction.UpdatedAt)
 		if err != nil {
 			r.logger.Error("Error when scanning transaction table", zap.Error(err))
 			return transactions, err

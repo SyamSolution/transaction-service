@@ -7,6 +7,7 @@ type Transaction struct {
 	UserID          int       `json:"user_id"`
 	OrderID         string    `json:"order_id"`
 	TransactionDate time.Time `json:"transaction_date"`
+	Continent       string    `json:"continent"`
 	PaymentMethod   string    `json:"payment_method"`
 	TotalAmount     float32   `json:"total_amount"`
 	TotalTicket     int       `json:"total_ticket"`
@@ -44,6 +45,7 @@ type TransactionRequest struct {
 	TotalTicket   int                        `json:"total_ticket"`
 	DetailTicket  []DetailTransactionRequest `json:"detail_ticket"`
 	PaymentStatus string                     `json:"payment_status"`
+	Continent     string                     `json:"continent"`
 }
 
 type DetailTransactionResponse struct {
@@ -64,6 +66,7 @@ type TransactionResponse struct {
 	TotalAmount               float32                     `json:"total_amount"`
 	TotalTicket               int                         `json:"total_ticket"`
 	Status                    string                      `json:"status"`
+	Continent                 string                      `json:"continent"`
 	DetailTransactionResponse []DetailTransactionResponse `json:"detail_transaction"`
 }
 
