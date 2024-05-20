@@ -73,7 +73,17 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		detailTransactions = append(detailTransactions, detailTransaction)
 	}
 
-	err := uc.transactionRepo.CreateTransaction(transaction, detailTransactions)
+	isEligible, err := helper.CheckEligible()
+	if err != nil {
+		uc.logger.Error("Error when checking eligible", zap.Error(err))
+		return nil, err
+	}
+
+	if !isEligible {
+		return nil, fmt.Errorf("not eligible")
+	}
+
+	err = uc.transactionRepo.CreateTransaction(transaction, detailTransactions)
 	if err != nil {
 		uc.logger.Error("Error when creating transaction", zap.Error(err))
 		return nil, err
