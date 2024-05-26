@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/SyamSolution/transaction-service/config"
 	"github.com/SyamSolution/transaction-service/helper"
@@ -22,6 +23,7 @@ import (
 type transaction struct {
 	transactionUsecase usecase.TransactionExecutor
 	logger             config.Logger
+	cacher             config.Cacher
 }
 
 type TransactionHandler interface {
@@ -32,8 +34,8 @@ type TransactionHandler interface {
 	MidtransTransactionCancel(c *fiber.Ctx) error
 }
 
-func NewTransactionHandler(transactionUsecase usecase.TransactionExecutor, logger config.Logger) TransactionHandler {
-	return &transaction{transactionUsecase: transactionUsecase, logger: logger}
+func NewTransactionHandler(transactionUsecase usecase.TransactionExecutor, logger config.Logger, cacher config.Cacher) TransactionHandler {
+	return &transaction{transactionUsecase: transactionUsecase, logger: logger, cacher: cacher}
 }
 
 func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
@@ -48,66 +50,97 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		})
 	}
 
-	// TODO cek redis kalau ada
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", os.Getenv("USER_SERVICE_URL"), nil)
+	//cek redis kalau ada
+	var user model.User
+	cacheDataUser, err := h.cacher.Get(c.Context(), "user-"+c.Locals("email").(string))
 	if err != nil {
-		h.logger.Error("Error when creating new request", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
-			Meta: model.Meta{
-				Code:    fiber.StatusInternalServerError,
-				Message: util.ERROR_BASE_MSG,
-			},
-		})
+		h.logger.Error("Error when getting data from cache", zap.Error(err))
+	}
+	if cacheDataUser == "" {
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", os.Getenv("USER_SERVICE_URL"), nil)
+		if err != nil {
+			h.logger.Error("Error when creating new request", zap.Error(err))
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusInternalServerError,
+					Message: util.ERROR_BASE_MSG,
+				},
+			})
+		}
+
+		req.Header.Set("Authorization", c.Get("Authorization"))
+
+		resp, err := client.Do(req)
+		if err != nil {
+			h.logger.Error("Error when sending request to user service", zap.Error(err))
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusInternalServerError,
+					Message: util.ERROR_BASE_MSG,
+				},
+			})
+		}
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			h.logger.Error("Error when reading response body", zap.Error(err))
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusInternalServerError,
+					Message: util.ERROR_BASE_MSG,
+				},
+			})
+		}
+
+		var respUser model.ResponseUser
+		err = json.Unmarshal(body, &respUser)
+		if err != nil {
+			h.logger.Error("Error when unmarshalling response body", zap.Error(err))
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusInternalServerError,
+					Message: util.ERROR_BASE_MSG,
+				},
+			})
+		}
+
+		if respUser.Data.User == (model.User{}) {
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusUnauthorized,
+					Message: "Unauthorized",
+				},
+			})
+		}
+		user = respUser.Data.User
+
+		userJson, _ := json.Marshal(respUser.Data.User)
+		err = h.cacher.Set(c.Context(), "user-"+c.Locals("email").(string), userJson, time.Hour*24*30)
+		if err != nil {
+			h.logger.Error("Error when setting data to cache", zap.Error(err))
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusInternalServerError,
+					Message: util.ERROR_BASE_MSG,
+				},
+			})
+		}
+	} else {
+		err = json.Unmarshal([]byte(cacheDataUser), &user)
+		if err != nil {
+			h.logger.Error("Error when unmarshalling response body", zap.Error(err))
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+				Meta: model.Meta{
+					Code:    fiber.StatusInternalServerError,
+					Message: util.ERROR_BASE_MSG,
+				},
+			})
+		}
 	}
 
-	req.Header.Set("Authorization", c.Get("Authorization"))
-
-	resp, err := client.Do(req)
-	if err != nil {
-		h.logger.Error("Error when sending request to user service", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
-			Meta: model.Meta{
-				Code:    fiber.StatusInternalServerError,
-				Message: util.ERROR_BASE_MSG,
-			},
-		})
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		h.logger.Error("Error when reading response body", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
-			Meta: model.Meta{
-				Code:    fiber.StatusInternalServerError,
-				Message: util.ERROR_BASE_MSG,
-			},
-		})
-	}
-
-	var respUser model.ResponseUser
-	err = json.Unmarshal(body, &respUser)
-	if err != nil {
-		h.logger.Error("Error when unmarshalling response body", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
-			Meta: model.Meta{
-				Code:    fiber.StatusInternalServerError,
-				Message: util.ERROR_BASE_MSG,
-			},
-		})
-	}
-
-	if respUser.Data.User == (model.User{}) {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ResponseWithoutData{
-			Meta: model.Meta{
-				Code:    fiber.StatusUnauthorized,
-				Message: "Unauthorized",
-			},
-		})
-	}
-
-	snapResp, discount, total, err := h.transactionUsecase.CreateTransaction(request, respUser.Data.User)
+	snapResp, discount, total, err := h.transactionUsecase.CreateTransaction(request, user)
 	if err != nil {
 		if strings.Contains(err.Error(), "not eligible") {
 			return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{

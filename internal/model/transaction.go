@@ -42,7 +42,6 @@ type DetailTransactionRequest struct {
 
 type TransactionRequest struct {
 	PaymentMethod string                     `json:"payment_method"`
-	TotalAmount   float32                    `json:"total_amount"`
 	TotalTicket   int                        `json:"total_ticket"`
 	DetailTicket  []DetailTransactionRequest `json:"detail_ticket"`
 	PaymentStatus string                     `json:"payment_status"`

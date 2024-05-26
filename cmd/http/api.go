@@ -22,6 +22,9 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+	defer db.Close()
+
+	cacher := config.NewCacher(baseDep.Logger)
 
 	dbCollector := middleware.NewStatsCollector("assesment", db)
 	prometheus.MustRegister(dbCollector)
@@ -36,7 +39,7 @@ func main() {
 	//=== usecase lists end ===//
 
 	//=== handler lists start ===//
-	transactionHandler := handler.NewTransactionHandler(transactionUsecase, baseDep.Logger)
+	transactionHandler := handler.NewTransactionHandler(transactionUsecase, baseDep.Logger, cacher)
 	//=== handler lists end ===//
 
 	app := fiber.New()

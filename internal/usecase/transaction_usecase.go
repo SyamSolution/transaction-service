@@ -49,8 +49,15 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		return nil, 0, 0, err
 	}
 
+	var totalAmount float32
 	var detailTransactions []model.DetailTransaction
 	for _, detail := range request.DetailTicket {
+		for _, t := range tickets {
+			if detail.TicketID == t.TicketID {
+				totalAmount = totalAmount + float32(detail.Quantity*t.Price)
+			}
+		}
+
 		detailTransaction := model.DetailTransaction{
 			TicketID:    detail.TicketID,
 			TicketType:  detail.TicketType,
@@ -91,7 +98,7 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		TransactionDate: time.Now(),
 		PaymentMethod:   request.PaymentMethod,
 		Continent:       request.Continent,
-		TotalAmount:     request.TotalAmount,
+		TotalAmount:     totalAmount,
 		TotalTicket:     request.TotalTicket,
 		FullName:        user.FullName,
 		MobileNumber:    user.PhoneNumber,
@@ -102,9 +109,6 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 	}
 
 	// cek stock semua ticket group by continent yang sold out
-	// cek semua transaksi sebelumnya yang ada continent yang sold out
-	// kalau ada, cek continent dengan continent transaksi sekarang
-	// jika beda kasih discount 20%
 	stockTicket, err := helper.GetStockTicketGroupByContinent()
 	if err != nil {
 		uc.logger.Error("Error when getting stock ticket group by continent", zap.Error(err))
@@ -118,17 +122,22 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 	}
 
 	if len(continentSoldout) > 0 {
+		// cek semua continent transaksi sebelumnya
 		continentLastTransaction, err := uc.transactionRepo.GetDistinctContinentTransaction(user.Email)
 		if err != nil {
 			uc.logger.Error("Error when getting distinct continent transaction", zap.Error(err))
 			return nil, 0, 0, err
 		}
 
+		// cek continent dengan continent transaksi sekarang
+		// jika beda kasih discount 20%
+	outer:
 		for _, cs := range continentSoldout {
 			for _, continent := range continentLastTransaction {
 				if continent == cs && continent != request.Continent {
 					transaction.Discount = 20
-					transaction.TotalAmount = request.TotalAmount * ((100 - transaction.Discount) / 100)
+					transaction.TotalAmount = transaction.TotalAmount * ((100 - transaction.Discount) / 100)
+					break outer
 				}
 			}
 		}
@@ -148,7 +157,7 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 	req := &snap.Request{
 		TransactionDetails: midtrans.TransactionDetails{
 			OrderID:  orderID,
-			GrossAmt: int64(request.TotalAmount) * 16045,
+			GrossAmt: int64(transaction.TotalAmount) * 16045,
 		},
 		CustomerDetail: &midtrans.CustomerDetails{
 			FName: user.FullName,
@@ -167,7 +176,7 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		Name:         user.FullName,
 		Date:         time.Now().Format("02 January 2006 15:04:05"),
 		DeadlineDate: time.Now().AddDate(0, 0, 1).Format("02 January 2006 15:04:05"),
-		Total:        request.TotalAmount,
+		Total:        transaction.TotalAmount,
 	}
 
 	if err := helper.ProduceCreateTransactionMessageMail(message); err != nil {
