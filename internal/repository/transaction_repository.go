@@ -19,6 +19,7 @@ type TransactionPersister interface {
 	GetDetailTransactionByTransactionID(transactionID int) ([]model.DetailTransaction, error)
 	GetListTransaction(request model.TransactionListRequest) ([]model.Transaction, error)
 	UpdateTransactionStatus(orderID string, status string) error
+	GetDistinctContinentTransaction(email string) ([]string, error)
 }
 
 func NewTransactionRepository(DB *sql.DB, logger config.Logger) TransactionPersister {
@@ -27,8 +28,8 @@ func NewTransactionRepository(DB *sql.DB, logger config.Logger) TransactionPersi
 
 func (r *transactionRepository) CreateTransaction(transaction model.Transaction, detailTransaction []model.DetailTransaction) error {
 	query := `INSERT INTO transaction (user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name, 
-    		mobile_number, email, payment_status, continent, created_at, updated_at) 
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    		mobile_number, email, payment_status, continent, discount, created_at, updated_at) 
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 
 	query2 := `INSERT INTO detail_transaction (transaction_id, ticket_id, ticket_type, country_name, city, quantity, created_at, updated_at)
     		VALUES (?,?,?,?,?,?,?,?)`
@@ -40,7 +41,8 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 	}
 
 	result, err := tx.Exec(query, transaction.UserID, transaction.OrderID, transaction.TransactionDate, transaction.PaymentMethod, transaction.TotalAmount,
-		transaction.TotalTicket, transaction.FullName, transaction.MobileNumber, transaction.Email, transaction.PaymentStatus, transaction.Continent, transaction.CreatedAt, transaction.UpdatedAt)
+		transaction.TotalTicket, transaction.FullName, transaction.MobileNumber, transaction.Email, transaction.PaymentStatus, transaction.Continent,
+		transaction.Discount, transaction.CreatedAt, transaction.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when inserting transaction", zap.Error(err))
 		tx.Rollback()
@@ -173,4 +175,28 @@ func (r *transactionRepository) UpdateTransactionStatus(orderID string, status s
 	}
 
 	return nil
+}
+
+func (r *transactionRepository) GetDistinctContinentTransaction(email string) ([]string, error) {
+	var continents []string
+	query := `SELECT DISTINCT continent FROM transaction WHERE email = ?`
+
+	rows, err := r.DB.Query(query, email)
+	if err != nil {
+		r.logger.Error("Error when querying transaction table", zap.Error(err))
+		return continents, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var continent string
+		err := rows.Scan(&continent)
+		if err != nil {
+			r.logger.Error("Error when scanning transaction table", zap.Error(err))
+			return continents, err
+		}
+		continents = append(continents, continent)
+	}
+
+	return continents, nil
 }

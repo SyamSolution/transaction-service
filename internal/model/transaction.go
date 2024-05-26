@@ -11,6 +11,7 @@ type Transaction struct {
 	PaymentMethod   string    `json:"payment_method"`
 	TotalAmount     float32   `json:"total_amount"`
 	TotalTicket     int       `json:"total_ticket"`
+	Discount        float32   `json:"discount"`
 	FullName        string    `json:"full_name"`
 	MobileNumber    string    `json:"mobile_number"`
 	Email           string    `json:"email"`
@@ -60,6 +61,7 @@ type DetailTransactionResponse struct {
 type TransactionResponse struct {
 	TransactionID             int                         `json:"transaction_id"`
 	OrderID                   string                      `json:"order_id"`
+	FullName                  string                      `json:"full_name"`
 	Email                     string                      `json:"email"`
 	TransactionDate           time.Time                   `json:"transaction_date"`
 	PaymentMethod             string                      `json:"payment_method"`
@@ -68,6 +70,7 @@ type TransactionResponse struct {
 	Status                    string                      `json:"status"`
 	Continent                 string                      `json:"continent"`
 	DetailTransactionResponse []DetailTransactionResponse `json:"detail_transaction"`
+	CreatedAt                 time.Time                   `json:"created_at"`
 }
 
 type TransactionListRequest struct {

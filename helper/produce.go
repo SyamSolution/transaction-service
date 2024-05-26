@@ -31,29 +31,6 @@ func ProduceCreateTransactionMessageMail(message model.Message) error {
 	return nil
 }
 
-func ProduceCompletedTransactionMessageMail(message model.CompleteTransactionMessage) error {
-	producer, err := sarama.NewSyncProducer([]string{os.Getenv("KAFKA_BROKER")}, nil)
-	if err != nil {
-		return err
-	}
-
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		return err
-	}
-
-	produceMessage := &sarama.ProducerMessage{
-		Topic: "completed-transaction",
-		Value: sarama.StringEncoder(jsonMessage),
-	}
-
-	if _, _, err := producer.SendMessage(produceMessage); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func ProduceOrderTicketMessage(message model.MessageOrderTicket) error {
 	producer, err := sarama.NewSyncProducer([]string{os.Getenv("KAFKA_BROKER")}, nil)
 	if err != nil {
@@ -113,6 +90,29 @@ func ProduceFailedOrderTicketMessage(message model.MessageOrderTicket) error {
 
 	produceMessage := &sarama.ProducerMessage{
 		Topic: "failed-order-ticket",
+		Value: sarama.StringEncoder(jsonMessage),
+	}
+
+	if _, _, err := producer.SendMessage(produceMessage); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ProduceSendPDFMessage(message model.EmailPDFMessage) error {
+	producer, err := sarama.NewSyncProducer([]string{os.Getenv("KAFKA_BROKER")}, nil)
+	if err != nil {
+		return err
+	}
+
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	produceMessage := &sarama.ProducerMessage{
+		Topic: "send-pdf",
 		Value: sarama.StringEncoder(jsonMessage),
 	}
 

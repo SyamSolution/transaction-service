@@ -29,6 +29,7 @@ type TransactionHandler interface {
 	GetTransactionByTransactionID(c *fiber.Ctx) error
 	MidtransNotification(ctx *fiber.Ctx) error
 	GetListTransaction(c *fiber.Ctx) error
+	MidtransTransactionCancel(c *fiber.Ctx) error
 }
 
 func NewTransactionHandler(transactionUsecase usecase.TransactionExecutor, logger config.Logger) TransactionHandler {
@@ -106,7 +107,7 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 		})
 	}
 
-	snapResp, err := h.transactionUsecase.CreateTransaction(request, respUser.Data.User)
+	snapResp, discount, total, err := h.transactionUsecase.CreateTransaction(request, respUser.Data.User)
 	if err != nil {
 		if strings.Contains(err.Error(), "not eligible") {
 			return c.Status(fiber.StatusBadRequest).JSON(model.ResponseWithoutData{
@@ -128,11 +129,15 @@ func (h *transaction) CreateTransaction(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(model.Response{
 		Data: struct {
-			Token       string `json:"token"`
-			RedirectURL string `json:"redirect_url"`
+			Token            string  `json:"token"`
+			RedirectURL      string  `json:"redirect_url"`
+			Discount         float32 `json:"discount"`
+			TotalTransaction float32 `json:"total_transaction"`
 		}{
-			Token:       snapResp.Token,
-			RedirectURL: snapResp.RedirectURL,
+			Token:            snapResp.Token,
+			RedirectURL:      snapResp.RedirectURL,
+			Discount:         discount,
+			TotalTransaction: total,
 		},
 		Meta: model.Meta{
 			Code:    fiber.StatusCreated,
@@ -282,6 +287,37 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 			}
 		case "settlement":
 			// TODO: Update your database to set the transaction status to 'success'
+			ticketEvent, err := helper.GetTicketEventByTicketID(transactionOrder.DetailTransactionResponse[0].TicketID)
+			if err != nil {
+				h.logger.Error("Error when getting ticket event by ticket ID", zap.Error(err))
+				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+
+			emailPDF := model.EmailPDFMessage{
+				Email:          transactionOrder.Email,
+				OrderId:        orderId,
+				EventName:      ticketEvent.EventName,
+				Price:          transactionOrder.TotalAmount,
+				NumberOfTicket: transactionOrder.TotalTicket,
+				EventDate:      ticketEvent.Date.Format("2006-01-02"),
+				EventTime:      ticketEvent.Date.Format("15:04:05"),
+				Venue:          ticketEvent.CountryPlace,
+				CustomerName:   transactionOrder.FullName,
+				PurchaseDate:   transactionOrder.CreatedAt.Format("2006-01-02 15:04:05"),
+			}
+			for _, dt := range transactionOrder.DetailTransactionResponse {
+				emailPDF.DetailTickets = append(emailPDF.DetailTickets, model.DetailTicket{
+					TicketType:  dt.TicketType,
+					TotalTicket: dt.Quantity,
+				})
+			}
+
+			if err := helper.ProduceSendPDFMessage(emailPDF); err != nil {
+				h.logger.Error("Error when producing message", zap.Error(err))
+			}
+
 			for _, dt := range transactionOrder.DetailTransactionResponse {
 				message := model.MessageOrderTicket{
 					TicketID: dt.TicketID,
@@ -293,7 +329,7 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 				}
 			}
 
-			err := h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transactionOrder.Email)
+			err = h.transactionUsecase.UpdateTransactionStatus(orderId, "completed", transactionOrder.Email)
 			if err != nil {
 				h.logger.Error("Error when updating transaction status", zap.Error(err))
 				return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -338,5 +374,29 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 	// Return a success response
 	return ctx.JSON(fiber.Map{
 		"status": "ok",
+	})
+}
+
+func (h *transaction) MidtransTransactionCancel(c *fiber.Ctx) error {
+	orderId := c.Params("order_id")
+
+	var core = coreapi.Client{}
+	core.New(os.Getenv("MIDTRANS_SERVER_KEY"), midtrans.Sandbox)
+	_, err := core.CancelTransaction(orderId)
+	if err != nil {
+		h.logger.Error("Error when cancelling transaction", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ResponseWithoutData{
+			Meta: model.Meta{
+				Code:    fiber.StatusInternalServerError,
+				Message: "Error when cancelling transaction",
+			},
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(model.ResponseWithoutData{
+		Meta: model.Meta{
+			Code:    fiber.StatusOK,
+			Message: "Transaction cancelled successfully",
+		},
 	})
 }

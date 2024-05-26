@@ -55,7 +55,7 @@ func main() {
 	app.Post("/transactions", transactionHandler.CreateTransaction)
 	app.Get("/transactions/:transaction_id", transactionHandler.GetTransactionByTransactionID)
 	app.Get("/transactions-list", transactionHandler.GetListTransaction)
-	// TODO tambah api buat cancel
+	app.Post("/midtrans/transaction-cancel/:order_id", transactionHandler.MidtransTransactionCancel)
 
 	//=== listen port ===//
 	if err := app.Listen(fmt.Sprintf(":%s", os.Getenv("APP_PORT"))); err != nil {
