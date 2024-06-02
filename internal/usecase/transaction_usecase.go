@@ -1,8 +1,12 @@
 package usecase
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/SyamSolution/transaction-service/config"
 	"github.com/SyamSolution/transaction-service/helper"
 	"github.com/SyamSolution/transaction-service/internal/model"
@@ -10,8 +14,6 @@ import (
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/snap"
 	"go.uber.org/zap"
-	"os"
-	"time"
 )
 
 type transactionUsecase struct {
@@ -83,9 +85,15 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 			}
 		}
 
-		// produce ke ticket-management-service
-		if err := helper.ProduceOrderTicketMessage(message); err != nil {
-			uc.logger.Error("Error when producing message order ticket", zap.Error(err))
+		jsonString, err := json.Marshal(message)
+		if err != nil {
+			fmt.Println("Error:", err)
+			uc.logger.Error("Error when proceesing message", zap.Error(err))
+		
+		}
+		
+		if err = helper.ProduceMessageSqs(os.Getenv("SQS_TICKET_URL"), string(jsonString), "Update Create Order Status"); err != nil {
+			uc.logger.Error("Error when producing message", zap.Error(err))
 		}
 
 		detailTransactions = append(detailTransactions, detailTransaction)
@@ -135,7 +143,16 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		for _, cs := range continentSoldout {
 			for _, continent := range continentLastTransaction {
 				if continent == cs && continent != request.Continent {
-					transaction.Discount = 20
+					discountModel := model.Discount{
+						IsContinentSoldOut: true,
+						IsContinentDiff:    true,
+					}
+					discount, err := helper.CheckDiscount(discountModel)
+					if err != nil {
+						uc.logger.Error("Error when checking discount", zap.Error(err))
+						return nil, 0, 0, err
+					}
+					transaction.Discount = discount
 					transaction.TotalAmount = transaction.TotalAmount * ((100 - transaction.Discount) / 100)
 					break outer
 				}
@@ -179,7 +196,14 @@ func (uc *transactionUsecase) CreateTransaction(request model.TransactionRequest
 		Total:        transaction.TotalAmount,
 	}
 
-	if err := helper.ProduceCreateTransactionMessageMail(message); err != nil {
+	jsonString, err := json.Marshal(message)
+	if err != nil {
+		fmt.Println("Error:", err)
+		uc.logger.Error("Error when proceesing message", zap.Error(err))
+	
+	}
+	
+	if err = helper.ProduceMessageSqs(os.Getenv("SQS_TRANSACTION_URL"), string(jsonString), "Create Transaction"); err != nil {
 		uc.logger.Error("Error when producing message", zap.Error(err))
 	}
 

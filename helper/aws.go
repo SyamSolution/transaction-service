@@ -5,12 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/golang-jwt/jwt/v4"
-	_ "github.com/joho/godotenv/autoload"
 	"log"
 	"math/big"
 	"net/http"
 	"os"
+
+	"github.com/golang-jwt/jwt/v4"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 var (
@@ -113,3 +114,4 @@ func VerifyToken(tokenString string, attribute string) (interface{}, error) {
 	}
 
 }
+

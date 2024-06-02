@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -305,7 +306,14 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 						Order:    dt.Quantity,
 					}
 
-					if err := helper.ProduceSuccessOrderTicketMessage(message); err != nil {
+					jsonString, err := json.Marshal(message)
+					if err != nil {
+						fmt.Println("Error:", err)
+						h.logger.Error("Error when proceesing message", zap.Error(err))
+					
+					}
+					
+					if err = helper.ProduceMessageSqs(os.Getenv("SQS_TICKET_SUCCESS_URL"), string(jsonString), "Update Ticket Success"); err != nil {
 						h.logger.Error("Error when producing message", zap.Error(err))
 					}
 				}
@@ -346,8 +354,14 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 					TotalTicket: dt.Quantity,
 				})
 			}
-
-			if err := helper.ProduceSendPDFMessage(emailPDF); err != nil {
+			jsonString, err := json.Marshal(emailPDF)
+			if err != nil {
+				fmt.Println("Error:", err)
+				h.logger.Error("Error when proceesing message", zap.Error(err))
+			
+			}
+			
+			if err = helper.ProduceMessageSqs(os.Getenv("SQS_MAIL_URL"), string(jsonString), "Send Email PDF Success"); err != nil {
 				h.logger.Error("Error when producing message", zap.Error(err))
 			}
 
@@ -357,7 +371,14 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 					Order:    dt.Quantity,
 				}
 
-				if err := helper.ProduceSuccessOrderTicketMessage(message); err != nil {
+				jsonString, err := json.Marshal(message)
+				if err != nil {
+					fmt.Println("Error:", err)
+					h.logger.Error("Error when proceesing message", zap.Error(err))
+				
+				}
+				
+				if err = helper.ProduceMessageSqs(os.Getenv("SQS_TICKET_SUCCESS_URL"), string(jsonString), "Update Ticket Success"); err != nil {
 					h.logger.Error("Error when producing message", zap.Error(err))
 				}
 			}
@@ -373,14 +394,21 @@ func (h *transaction) MidtransNotification(ctx *fiber.Ctx) error {
 			// TODO: Handle 'deny' appropriately
 		case "cancel", "expire":
 			// TODO: Update your database to set the transaction status to 'failure'
-			// kirim kafka ke ticket-management-service balikin ticket
+			// kirim message SQS ke ticket-management-service balikin ticket
 			for _, dt := range transactionOrder.DetailTransactionResponse {
 				message := model.MessageOrderTicket{
 					TicketID: dt.TicketID,
 					Order:    dt.Quantity,
 				}
 
-				if err := helper.ProduceFailedOrderTicketMessage(message); err != nil {
+				jsonString, err := json.Marshal(message)
+				if err != nil {
+					fmt.Println("Error:", err)
+					h.logger.Error("Error when proceesing message", zap.Error(err))
+				
+				}
+				
+				if err = helper.ProduceMessageSqs(os.Getenv("SQS_TICKET_FAILED_URL"), string(jsonString), "Update Ticket Failed"); err != nil {
 					h.logger.Error("Error when producing message", zap.Error(err))
 				}
 			}

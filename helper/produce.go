@@ -2,10 +2,11 @@ package helper
 
 import (
 	"encoding/json"
+	"os"
+
 	"github.com/IBM/sarama"
 	"github.com/SyamSolution/transaction-service/internal/model"
 	_ "github.com/joho/godotenv"
-	"os"
 )
 
 func ProduceCreateTransactionMessageMail(message model.Message) error {

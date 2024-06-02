@@ -1,10 +1,10 @@
-# Project Name
+# User Service
 
-A brief description of what your project does and its purpose.
+User Service is a microservice for managing user data. It provides endpoints for creating, updating, retrieving, and deleting users.
 
 ## Table of Contents
 
-- [Project Name](#project-name)
+- [User Service](#user-service)
   - [Features](#features)
   - [Installation](#installation)
   - [Usage](#usage)
@@ -15,20 +15,22 @@ A brief description of what your project does and its purpose.
 
 ## Features
 
-- Feature 1
-- Feature 2
-- Feature 3
+- Create a new user
+- Retrieve user details
+- Update user information
+- Delete a user
 
 ## Installation
 
 ### Prerequisites
 
-- [Golang](https://golang.org/doc/install) (version x.x.x or later)
-- [Docker](https://www.docker.com/get-started) (if applicable)
+- [Docker](https://www.docker.com/get-started) (version 20.10 or later)
 
 ### Clone the Repository
 
 ```sh
-git clone https://github.com/yourusername/yourproject.git
-cd yourproject
+git clone https://github.com/SyamSolution/user-service.git
+cd user-service
+
+
 ```
