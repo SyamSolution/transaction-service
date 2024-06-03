@@ -22,11 +22,13 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+	defer db.Close()
+
+	cacher := config.NewCacher(baseDep.Logger)
 
 	dbCollector := middleware.NewStatsCollector("assesment", db)
 	prometheus.MustRegister(dbCollector)
-	fiberProm := middleware.NewWithRegistry(prometheus.DefaultRegisterer, "smilley", "", "", map[string]string{})
-
+	fiberProm := middleware.NewWithRegistry(prometheus.DefaultRegisterer, "transaction-service", "", "", map[string]string{})
 
 	//=== repository lists start ===//
 	transactionRepo := repository.NewTransactionRepository(db, baseDep.Logger)
@@ -37,7 +39,7 @@ func main() {
 	//=== usecase lists end ===//
 
 	//=== handler lists start ===//
-	transactionHandler := handler.NewTransactionHandler(transactionUsecase, baseDep.Logger)
+	transactionHandler := handler.NewTransactionHandler(transactionUsecase, baseDep.Logger, cacher)
 	//=== handler lists end ===//
 
 	app := fiber.New()
@@ -49,15 +51,17 @@ func main() {
 	//=== metrics route
 	fiberProm.RegisterAt(app, "/metrics")
 	app.Use(fiberProm.Middleware)
-	
+
 	//=== transaction routes ===//
 	app.Post("/midtrans-notification", transactionHandler.MidtransNotification)
 	app.Group("/", middleware.Auth())
 	app.Post("/transactions", transactionHandler.CreateTransaction)
 	app.Get("/transactions/:transaction_id", transactionHandler.GetTransactionByTransactionID)
+	app.Get("/transactions-list", transactionHandler.GetListTransaction)
+	app.Post("/midtrans/transaction-cancel/:order_id", transactionHandler.MidtransTransactionCancel)
 
 	//=== listen port ===//
-	if err := app.Listen(fmt.Sprintf(":%s", "3002")); err != nil {
+	if err := app.Listen(fmt.Sprintf(":%s", os.Getenv("APP_PORT"))); err != nil {
 		log.Fatal(err)
 	}
 }

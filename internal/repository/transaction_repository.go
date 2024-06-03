@@ -14,11 +14,12 @@ type transactionRepository struct {
 
 type TransactionPersister interface {
 	CreateTransaction(transaction model.Transaction, detailTransaction []model.DetailTransaction) error
-	GetTransactionByTransactionID(transactionID int) (model.Transaction, error)
+	GetTransactionByTransactionID(transactionID int, email string) (model.Transaction, error)
 	GetTransactionByOrderID(orderID string) (model.Transaction, error)
 	GetDetailTransactionByTransactionID(transactionID int) ([]model.DetailTransaction, error)
 	GetListTransaction(request model.TransactionListRequest) ([]model.Transaction, error)
 	UpdateTransactionStatus(orderID string, status string) error
+	GetDistinctContinentTransaction(email string) ([]string, error)
 }
 
 func NewTransactionRepository(DB *sql.DB, logger config.Logger) TransactionPersister {
@@ -27,10 +28,10 @@ func NewTransactionRepository(DB *sql.DB, logger config.Logger) TransactionPersi
 
 func (r *transactionRepository) CreateTransaction(transaction model.Transaction, detailTransaction []model.DetailTransaction) error {
 	query := `INSERT INTO transaction (user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name, 
-    		mobile_number, email, payment_status, created_at, updated_at) 
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+    		mobile_number, email, payment_status, continent, discount, created_at, updated_at) 
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 
-	query2 := `INSERT INTO detail_transaction (transaction_id, ticket_type, country_name, country_code, city, quantity, created_at, updated_at)
+	query2 := `INSERT INTO detail_transaction (transaction_id, ticket_id, ticket_type, country_name, city, quantity, created_at, updated_at)
     		VALUES (?,?,?,?,?,?,?,?)`
 
 	tx, err := r.DB.Begin()
@@ -40,7 +41,8 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 	}
 
 	result, err := tx.Exec(query, transaction.UserID, transaction.OrderID, transaction.TransactionDate, transaction.PaymentMethod, transaction.TotalAmount,
-		transaction.TotalTicket, transaction.FullName, transaction.MobileNumber, transaction.Email, transaction.PaymentStatus, transaction.CreatedAt, transaction.UpdatedAt)
+		transaction.TotalTicket, transaction.FullName, transaction.MobileNumber, transaction.Email, transaction.PaymentStatus, transaction.Continent,
+		transaction.Discount, transaction.CreatedAt, transaction.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when inserting transaction", zap.Error(err))
 		tx.Rollback()
@@ -49,7 +51,7 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 	idResult, _ := result.LastInsertId()
 
 	for _, dt := range detailTransaction {
-		_, err = tx.Exec(query2, idResult, dt.TicketType, dt.CountryName, dt.CountryCode, dt.City, dt.Quantity, dt.CreatedAt, dt.UpdatedAt)
+		_, err = tx.Exec(query2, idResult, dt.TicketID, dt.TicketType, dt.CountryName, dt.City, dt.Quantity, dt.CreatedAt, dt.UpdatedAt)
 		if err != nil {
 			r.logger.Error("Error when inserting detail transaction", zap.Error(err))
 			tx.Rollback()
@@ -66,14 +68,14 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 	return nil
 }
 
-func (r *transactionRepository) GetTransactionByTransactionID(transactionID int) (model.Transaction, error) {
+func (r *transactionRepository) GetTransactionByTransactionID(transactionID int, email string) (model.Transaction, error) {
 	var transactions model.Transaction
 	query := `SELECT transaction_id, user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
-		mobile_number, email, payment_status, created_at, updated_at FROM transaction WHERE transaction_id = ?`
+		mobile_number, email, payment_status, continent, created_at, updated_at FROM transaction WHERE transaction_id = ? AND email = ?`
 
-	err := r.DB.QueryRow(query, transactionID).Scan(&transactions.TransactionID, &transactions.UserID, &transactions.OrderID, &transactions.TransactionDate,
+	err := r.DB.QueryRow(query, transactionID, email).Scan(&transactions.TransactionID, &transactions.UserID, &transactions.OrderID, &transactions.TransactionDate,
 		&transactions.PaymentMethod, &transactions.TotalAmount, &transactions.TotalTicket, &transactions.FullName, &transactions.MobileNumber,
-		&transactions.Email, &transactions.PaymentStatus, &transactions.CreatedAt, &transactions.UpdatedAt)
+		&transactions.Email, &transactions.PaymentStatus, &transactions.Continent, &transactions.CreatedAt, &transactions.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when scanning transaction table", zap.Error(err))
 		return transactions, err
@@ -85,11 +87,11 @@ func (r *transactionRepository) GetTransactionByTransactionID(transactionID int)
 func (r *transactionRepository) GetTransactionByOrderID(orderID string) (model.Transaction, error) {
 	var transactions model.Transaction
 	query := `SELECT transaction_id, user_id, order_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
-		mobile_number, email, payment_status, created_at, updated_at FROM transaction WHERE order_id = ?`
+		mobile_number, email, payment_status, continent, created_at, updated_at FROM transaction WHERE order_id = ?`
 
 	err := r.DB.QueryRow(query, orderID).Scan(&transactions.TransactionID, &transactions.UserID, &transactions.OrderID, &transactions.TransactionDate,
 		&transactions.PaymentMethod, &transactions.TotalAmount, &transactions.TotalTicket, &transactions.FullName, &transactions.MobileNumber,
-		&transactions.Email, &transactions.PaymentStatus, &transactions.CreatedAt, &transactions.UpdatedAt)
+		&transactions.Email, &transactions.PaymentStatus, &transactions.Continent, &transactions.CreatedAt, &transactions.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when scanning transaction table", zap.Error(err))
 		return transactions, err
@@ -100,7 +102,7 @@ func (r *transactionRepository) GetTransactionByOrderID(orderID string) (model.T
 
 func (r *transactionRepository) GetDetailTransactionByTransactionID(transactionID int) ([]model.DetailTransaction, error) {
 	var detailTransactions []model.DetailTransaction
-	query := `SELECT detail_transaction_id, transaction_id, ticket_type, country_name, country_code, city, quantity, created_at, updated_at
+	query := `SELECT detail_transaction_id, transaction_id, ticket_id, ticket_type, country_name, city, quantity, created_at, updated_at
 		FROM detail_transaction WHERE transaction_id = ?`
 
 	rows, err := r.DB.Query(query, transactionID)
@@ -112,8 +114,8 @@ func (r *transactionRepository) GetDetailTransactionByTransactionID(transactionI
 
 	for rows.Next() {
 		var detailTransaction model.DetailTransaction
-		err := rows.Scan(&detailTransaction.DetailTransactionID, &detailTransaction.TransactionID, &detailTransaction.TicketType,
-			&detailTransaction.CountryName, &detailTransaction.CountryCode, &detailTransaction.City, &detailTransaction.Quantity,
+		err := rows.Scan(&detailTransaction.DetailTransactionID, &detailTransaction.TransactionID, &detailTransaction.TicketID,
+			&detailTransaction.TicketType, &detailTransaction.CountryName, &detailTransaction.City, &detailTransaction.Quantity,
 			&detailTransaction.CreatedAt, &detailTransaction.UpdatedAt)
 		if err != nil {
 			r.logger.Error("Error when scanning detail transaction table", zap.Error(err))
@@ -128,21 +130,20 @@ func (r *transactionRepository) GetDetailTransactionByTransactionID(transactionI
 func (r *transactionRepository) GetListTransaction(request model.TransactionListRequest) ([]model.Transaction, error) {
 	var transactions []model.Transaction
 	query := `SELECT transaction_id, user_id, transaction_date, payment_method, total_amount, total_ticket, full_name,
-		mobile_number, email, payment_status, created_at, updated_at FROM transaction 
-		WHERE user_id = ?`
+		mobile_number, email, payment_status, continent, created_at, updated_at FROM transaction 
+		WHERE email = ?`
 
 	if request.Status != "" {
 		query += " AND payment_status = '" + request.Status + "'"
 	}
 
-	startDate := request.StartDate.Format("2006-01-02")
-	endDate := request.EndDate.Format("2006-01-02")
+	//if request.StartDate.IsZero() && !request.EndDate.IsZero() {
+	//	startDate := request.StartDate.Format("2006-01-02")
+	//	endDate := request.EndDate.Format("2006-01-02")
+	//	query += " AND transaction_date BETWEEN '" + startDate + "' AND '" + endDate + "'"
+	//}
 
-	if startDate != "" && endDate != "" {
-		query += " AND transaction_date BETWEEN '" + startDate + "' AND '" + endDate + "'"
-	}
-
-	rows, err := r.DB.Query(query, request.UserID)
+	rows, err := r.DB.Query(query, request.Email)
 	if err != nil {
 		r.logger.Error("Error when querying transaction table", zap.Error(err))
 		return transactions, err
@@ -153,7 +154,7 @@ func (r *transactionRepository) GetListTransaction(request model.TransactionList
 		var transaction model.Transaction
 		err := rows.Scan(&transaction.TransactionID, &transaction.UserID, &transaction.TransactionDate,
 			&transaction.PaymentMethod, &transaction.TotalAmount, &transaction.TotalTicket, &transaction.FullName, &transaction.MobileNumber,
-			&transaction.Email, &transaction.PaymentStatus, &transaction.CreatedAt, &transaction.UpdatedAt)
+			&transaction.Email, &transaction.PaymentStatus, &transaction.Continent, &transaction.CreatedAt, &transaction.UpdatedAt)
 		if err != nil {
 			r.logger.Error("Error when scanning transaction table", zap.Error(err))
 			return transactions, err
@@ -174,4 +175,28 @@ func (r *transactionRepository) UpdateTransactionStatus(orderID string, status s
 	}
 
 	return nil
+}
+
+func (r *transactionRepository) GetDistinctContinentTransaction(email string) ([]string, error) {
+	var continents []string
+	query := `SELECT DISTINCT continent FROM transaction WHERE email = ?`
+
+	rows, err := r.DB.Query(query, email)
+	if err != nil {
+		r.logger.Error("Error when querying transaction table", zap.Error(err))
+		return continents, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var continent string
+		err := rows.Scan(&continent)
+		if err != nil {
+			r.logger.Error("Error when scanning transaction table", zap.Error(err))
+			return continents, err
+		}
+		continents = append(continents, continent)
+	}
+
+	return continents, nil
 }

@@ -7,9 +7,11 @@ type Transaction struct {
 	UserID          int       `json:"user_id"`
 	OrderID         string    `json:"order_id"`
 	TransactionDate time.Time `json:"transaction_date"`
+	Continent       string    `json:"continent"`
 	PaymentMethod   string    `json:"payment_method"`
 	TotalAmount     float32   `json:"total_amount"`
 	TotalTicket     int       `json:"total_ticket"`
+	Discount        float32   `json:"discount"`
 	FullName        string    `json:"full_name"`
 	MobileNumber    string    `json:"mobile_number"`
 	Email           string    `json:"email"`
@@ -21,9 +23,9 @@ type Transaction struct {
 type DetailTransaction struct {
 	DetailTransactionID int       `json:"detail_transaction_id"`
 	TransactionID       int       `json:"transaction_id"`
+	TicketID            int       `json:"ticket_id"`
 	TicketType          string    `json:"ticket_type"`
 	CountryName         string    `json:"country_name"`
-	CountryCode         string    `json:"country_code"`
 	City                string    `json:"city"`
 	Quantity            int       `json:"quantity"`
 	CreatedAt           time.Time `json:"created_at"`
@@ -31,26 +33,26 @@ type DetailTransaction struct {
 }
 
 type DetailTransactionRequest struct {
+	TicketID    int    `json:"ticket_id"`
 	TicketType  string `json:"ticket_type"`
 	CountryName string `json:"country_name"`
-	CountryCode string `json:"country_code"`
 	City        string `json:"city"`
 	Quantity    int    `json:"quantity"`
 }
 
 type TransactionRequest struct {
 	PaymentMethod string                     `json:"payment_method"`
-	TotalAmount   float32                    `json:"total_amount"`
 	TotalTicket   int                        `json:"total_ticket"`
 	DetailTicket  []DetailTransactionRequest `json:"detail_ticket"`
 	PaymentStatus string                     `json:"payment_status"`
+	Continent     string                     `json:"continent"`
 }
 
 type DetailTransactionResponse struct {
 	DetailTransactionID int    `json:"detail_transaction_id"`
+	TicketID            int    `json:"ticket_id"`
 	TicketType          string `json:"ticket_type"`
 	CountryName         string `json:"country_name"`
-	CountryCode         string `json:"country_code"`
 	City                string `json:"city"`
 	Quantity            int    `json:"quantity"`
 }
@@ -58,17 +60,20 @@ type DetailTransactionResponse struct {
 type TransactionResponse struct {
 	TransactionID             int                         `json:"transaction_id"`
 	OrderID                   string                      `json:"order_id"`
+	FullName                  string                      `json:"full_name"`
 	Email                     string                      `json:"email"`
 	TransactionDate           time.Time                   `json:"transaction_date"`
 	PaymentMethod             string                      `json:"payment_method"`
 	TotalAmount               float32                     `json:"total_amount"`
 	TotalTicket               int                         `json:"total_ticket"`
 	Status                    string                      `json:"status"`
+	Continent                 string                      `json:"continent"`
 	DetailTransactionResponse []DetailTransactionResponse `json:"detail_transaction"`
+	CreatedAt                 time.Time                   `json:"created_at"`
 }
 
 type TransactionListRequest struct {
-	UserID    int       `json:"user_id"`
+	Email     string    `json:"email"`
 	StartDate time.Time `json:"start_date"`
 	EndDate   time.Time `json:"end_date"`
 	Status    string    `json:"status"`
