@@ -86,11 +86,11 @@ make coverage
 
 ## Low Level Design Architecture
 
-![picture](/assets/low-level.jpg)
+![picture](assets/low-level.jpg)
 
 ## ERD
 
-![picture](/assets/erd.jpg)
+![picture](assets/erd.png)
 
 ## Authors
 
