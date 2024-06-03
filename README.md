@@ -82,11 +82,11 @@ make coverage
 
 ## High Level Design Architecture
 
-![picture](/assets/high-level-architecture.png)
+![picture](assets/high-level-architecture.png)
 
 ## Low Level Design Architecture
 
-![picture](assets/low-level.jpg)
+![picture](assets/low-level.png)
 
 ## ERD
 
