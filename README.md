@@ -1,12 +1,12 @@
-# User Service
+# Transaction Service
 
 ## Name
 
-user-service
+Transaction-service
 
 ## Description
 
-User Service is service that used to manage user login, registration, and profile
+User Service is service that used to create transaction(order ticket), cancel transaction, and list transaction
 
 ## Installation
 
