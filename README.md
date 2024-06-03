@@ -82,7 +82,7 @@ make coverage
 
 ## High Level Design Architecture
 
-![picture](/assets/images/high-level-architecture.jpg)
+![picture](/assets/high-level-architecture.png)
 
 ## Low Level Design Architecture
 
