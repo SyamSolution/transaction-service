@@ -1,12 +1,12 @@
-# Ticket Trasaction Service
+# User Service
 
 ## Name
 
-transaction-service
+user-service
 
 ## Description
 
-Transaction Service is service that used to create transaction order ticket and view order list
+User Service is service that used to manage user login, registration, and profile
 
 ## Installation
 
@@ -20,9 +20,6 @@ Transaction Service is service that used to create transaction order ticket and 
 3. Fill out the env configuration
 
 ```bash
-# APP
-APP_PORT=
-
 # DATABASE
 DATABASE_USER=
 DATABASE_PASSWORD=
