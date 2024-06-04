@@ -1,12 +1,12 @@
-# Ticket Trasaction Service
+# Transaction Service
 
 ## Name
 
-transaction-service
+Transaction-service
 
 ## Description
 
-Transaction Service is service that used to create transaction order ticket and view order list
+User Service is service that used to create transaction(order ticket), cancel transaction, and list transaction
 
 ## Installation
 
@@ -82,15 +82,15 @@ make coverage
 
 ## High Level Design Architecture
 
-![picture](assets/high-level-architecture.png)
+![picture](assets/high-level.jpg)
 
 ## Low Level Design Architecture
 
-![picture](assets/low-level.png)
+![picture](assets/low-level.jpg)
 
 ## ERD
 
-![picture](assets/erd.png)
+![picture](assets/erd.jpg)
 
 ## Authors
 

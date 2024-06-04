@@ -1,12 +1,14 @@
 .PHONY: build clean development and deploy
 run:
+	@echo "Running application"
 	go run cmd/http/api.go
 
 migrate-up:
+	@echo "Running migration"
 	migrate -database "mysql://root:123456@tcp(localhost:3306)/transaction" -path db/migrations up
 
 migrate-down:
-	@echo "Running download lib"
+	@echo "Rollback migration"
 	migrate -database "mysql://root:123456@tcp(localhost:3306)/transaction" -path db/migrations down
 
 install:
