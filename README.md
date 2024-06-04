@@ -82,15 +82,15 @@ make coverage
 
 ## High Level Design Architecture
 
-![picture](assets/high-level-architecture.png)
+![picture](assets/high-level.jpg)
 
 ## Low Level Design Architecture
 
-![picture](assets/low-level.png)
+![picture](assets/low-level.jpg)
 
 ## ERD
 
-![picture](assets/erd.png)
+![picture](assets/erd.jpg)
 
 ## Authors
 
