@@ -22,12 +22,12 @@ dev:
 unit-test:
 	@echo "Running tests"
 	mkdir -p ./test/coverage && \
-		CGO_ENABLED=1 GOOS=linux go test $(BUILD_ARGS) -v ./... -coverprofile=./test/coverage/coverage.out
+		go test -v ./... -coverprofile=./test/coverage/coverage.out
 
 test-dev:
 	@echo "Running tests"
 	mkdir -p ./test/coverage && \
-		CGO_ENABLED=1 go test -tags dynamic -v ./... -coverprofile=./test/coverage/coverage.out
+		go test -tags dynamic -v ./... -coverprofile=./test/coverage/coverage.out
 
 coverage:
 	@echo "Running tests with coverage"
@@ -35,7 +35,7 @@ coverage:
 
 build:
 	@echo "Building the application"
-	CGO_ENABLED=1 GOOS=linux go build $(BUILD_ARGS) -a -o build/bin/main cmd/http/api.go
+	go build $(BUILD_ARGS) -a -o build/bin/main cmd/http/api.go
 
 start:
 	@echo "Start the application"
