@@ -45,7 +45,9 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 		transaction.Discount, transaction.CreatedAt, transaction.UpdatedAt)
 	if err != nil {
 		r.logger.Error("Error when inserting transaction", zap.Error(err))
-		tx.Rollback()
+		if err := tx.Rollback(); err != nil {
+			r.logger.Error("Error when rolling back transaction", zap.Error(err))
+		}
 		return err
 	}
 	idResult, _ := result.LastInsertId()
@@ -54,7 +56,9 @@ func (r *transactionRepository) CreateTransaction(transaction model.Transaction,
 		_, err = tx.Exec(query2, idResult, dt.TicketID, dt.TicketType, dt.CountryName, dt.City, dt.Quantity, dt.CreatedAt, dt.UpdatedAt)
 		if err != nil {
 			r.logger.Error("Error when inserting detail transaction", zap.Error(err))
-			tx.Rollback()
+			if err := tx.Rollback(); err != nil {
+				r.logger.Error("Error when rolling back transaction", zap.Error(err))
+			}
 			return err
 		}
 	}
