@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/SyamSolution/transaction-service/config"
 	"github.com/SyamSolution/transaction-service/config/middleware"
@@ -11,6 +12,10 @@ import (
 	"github.com/SyamSolution/transaction-service/internal/repository"
 	"github.com/SyamSolution/transaction-service/internal/usecase"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/pprof"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -43,6 +48,16 @@ func main() {
 	//=== handler lists end ===//
 
 	app := fiber.New()
+
+	app.Use(recover.New())
+	app.Use(cors.New())
+	app.Use(pprof.New())
+	app.Use(logger.New(logger.Config{
+		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
+		TimeInterval: time.Millisecond,
+		TimeFormat:   "02-01-2006 15:04:05",
+		TimeZone:     "Indonesia/Jakarta",
+	}))
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Hello, World!")
